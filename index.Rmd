@@ -1,0 +1,25 @@
+---
+title: "Learning Human Activity Recognition"
+author: "Howanu"
+date: "Saturday, November 22, 2014"
+output: html_document
+---
+
+##Summary
+
+##Model
+how you built your model 
+
+##cross Validation
+how you used cross validation
+
+##Out-of-sample Error
+ what you think the expected out of sample error is
+ 
+##Analysis Choices
+why you made the choices you did
+
+##References
+* Data was made available through the [Human Activity Recognition](http://groupware.les.inf.puc-rio.br/har) project
+* Training data: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+* Testing data: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
