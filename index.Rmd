@@ -7,7 +7,8 @@ output: html_document
 
 ```{r settings, message=FALSE, echo=FALSE}
 require(knitr)
-opts_chunk$set(echo=FALSE,message=FALSE)
+# digits doesn't work
+opts_chunk$set(echo=FALSE,message=FALSE,digits=7)
 ```
 
 ```{r libraries}
@@ -15,6 +16,7 @@ require(ggplot2)
 require(plyr)
 require(kfigr)
 require(caret)
+require(ROCR)
 ```
 
 
@@ -46,7 +48,8 @@ ts <- rawts[, - c(which(missing_colndx), inappropriate_colndx)]
 ```
 
 ```{r separate-training}
-tsndx <- createDataPartition(tr$classe, p = 0.40,list=FALSE)
+test_fraction <- 0.40
+tsndx <- createDataPartition(tr$classe, p = test_fraction,list=FALSE)
 trtr <- tr[-tsndx,]
 trts <- tr[tsndx,]
 ```
@@ -65,11 +68,9 @@ if (! found_best) {
                , method = "rf" 
                , data=trtr
                , trControl = fitControl) 
-}
-else
+} else {
   load("fit.RData")
-
-fit
+}
 ```
 
 ```{r testing}
@@ -90,30 +91,46 @@ if (! found_best) {
 }
 ```
 
-## Summary
-
 ## Model
-how you built your model 
-data forest
+Data were fit to a Random Forest model, built using 10-fold cross validation repeated 10 times. Training was done on all of the data features retained after cleaning (See Analysis Choices below).
 
 ## Cross Validation
-The choice of ten-fold cross validation was somewhat arbitrary. K-fold cross validation was chosen in order to reduce out-of-sample bias and to improve the out-of-sample error estimation accuracy.
 
-The training set, after partitioning to set aside a testing sample, has `r nrow(trtr)` observations. 10-fold validation therefore yields `r round(0.9 * nrow(trtr),1)` observations in each training fold, which seems large enough not to compromise training accuracy.
+The choice of ten-fold cross validation was somewhat arbitrary, but was chosen based on the volume of data and the model training time. K-fold cross validation was chosen in order to reduce out-of-sample bias and to improve the out-of-sample error estimation accuracy.
 
+The training set, after partitioning to set aside a testing sample, has `r nrow(trtr)` observations. 10-fold validation therefore yields `r round(0.9 * nrow(trtr),0)` observations in each training fold, which seems large enough not to compromise training accuracy.
 The run time was a practical consideration. 10-fold validation ran overnight. This limited the number of iterations that could be done to vary parameters and improve the model. 
 
 ## Out-of-sample Error
- what you think the expected out of sample error is
+
+Although the random forest authors [claim](http://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm#ooberr) that "there is no need for cross-validation or a separate test set to get an unbiased estimate of the test set error", I did choose to both cross validate and also to partition the training data into a model training and a test set. I chose cross validation to reduce the risk of overfitting, and I chose to partition the data in order to improve the estimate of of out-of-sample error.
+
+The random forest model was built with `r 100*(1-test_fraction)`% of the given training set.
+
+```{r oob}
+# Obtains metrics for the best fit
+oob_metrics <- fit$results[fit$results$mtry==fit$bestTune$mtry[1],]
+```
+
+The out-of-bag error was `r 1 - oob_metrics$Accuracy`, with accuracy within a 95% confidence interval of (`r oob_metrics$Accuracy + c(-1,1) * 1.96 * oob_metrics$AccuracySD`), assuming normally distributed error. However, out-of-bag error may reflect overfitting. A more realistic error measure can be obtained through testing of the data partition that did not participate in training.
+
+```{r ROC, anchor="figure"}
+trtsresults.probA <- predict(fit,type="prob",newdata=trts)$A
+A_or_notA <- as.factor(ifelse(trts$classe=="A", "A", "notA"))
+
+pred <- prediction(trtsresults.probA, A_or_notA, label.ordering = c("notA", "A"))
+perf <- performance(pred,"tpr","fpr")
+plot(perf,main="ROC for Correct versus Incorrect Form Predictions\nFrom Observations Not Used in Training",col=2,lwd=2)
+abline(a=0,b=1,lwd=2,lty=2,col="gray")
+```
+
+The Receiver Operating Characteristic (ROC) curve above shows the performance of the random forest model on prediction of correct weighlifting form (classe=="A"). The area under the ROC curve is `r unlist(slot(performance(pred,"auc"), "y.values"))` (actually 0.9999006). The accuracy of the prediction for all classes (not just class A) is `r round(100 * sum(trtsresults==trts$classe)/length(trtsresults),1)`%
+
  
 ## Analysis Choices
-why you made the choices you did
 
 * Features with any missing values in the test set were removed from both the test and training sets (`r figr('missing_variables_removed', type="figure", link=TRUE)`), because in general the model might require the missing variable in order to classify a test observation. 
 * Features that would not be known in a true prediction scenario, or that can not realistically be predictors, were also removed. For example, timestamps are not valid predictors because prediction should be possible in the future, when test timestamps will be different from those in the training set. Similarly, time window identification features may exactly predict observations that were done during the initial experiment, but will surely fail in a future prediction scenario. (`r figr('inappropriate_variables_removed', type="figure", link=TRUE)`)
-
-## Assignment Observations
-in datum veritas
 
 ## References
 * Data was made available through the [Human Activity Recognition](http://groupware.les.inf.puc-rio.br/har) project:
