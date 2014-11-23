@@ -92,13 +92,14 @@ if (! found_best) {
 ```
 
 ## Model
-Data were fit to a Random Forest model, built using 10-fold cross validation repeated 10 times. Training was done on all of the data features retained after cleaning (See Analysis Choices below).
+Data were fit to a Random Forest model, built using 10-fold cross validation repeated 10 times. Training was done on 60% of the given training data, on all of the data features retained after cleaning (See Analysis Choices below).
 
 ## Cross Validation
 
-The choice of ten-fold cross validation was somewhat arbitrary, but was chosen based on the volume of data and the model training time. K-fold cross validation was chosen in order to reduce out-of-sample bias and to improve the out-of-sample error estimation accuracy.
+The choice of ten-fold cross validation and ten repititions was somewhat arbitrary, but was chosen based on the volume of data and the model training time. Cross validation in general was chosen in order to reduce out-of-sample bias and to improve the out-of-sample error estimation accuracy.
 
-The training set, after partitioning to set aside a testing sample, has `r nrow(trtr)` observations. 10-fold validation therefore yields `r round(0.9 * nrow(trtr),0)` observations in each training fold, which seems large enough not to compromise training accuracy.
+The training set, after partitioning to set aside a testing sample, has `r nrow(trtr)` observations. 10-fold validation therefore yields `r as.numeric(0.9 * nrow(trtr))` observations in each training fold, which seems large enough not to compromise training accuracy.
+
 The run time was a practical consideration. 10-fold validation ran overnight. This limited the number of iterations that could be done to vary parameters and improve the model. 
 
 ## Out-of-sample Error
@@ -112,7 +113,7 @@ The random forest model was built with `r 100*(1-test_fraction)`% of the given t
 oob_metrics <- fit$results[fit$results$mtry==fit$bestTune$mtry[1],]
 ```
 
-The out-of-bag error was `r 1 - oob_metrics$Accuracy`, with accuracy within a 95% confidence interval of (`r oob_metrics$Accuracy + c(-1,1) * 1.96 * oob_metrics$AccuracySD`), assuming normally distributed error. However, out-of-bag error may reflect overfitting. A more realistic error measure can be obtained through testing of the data partition that did not participate in training.
+The out-of-bag error was `r 1 - oob_metrics$Accuracy`, with accuracy within a 95% confidence interval of (`r oob_metrics$Accuracy + c(-1,1) * 1.96 * oob_metrics$AccuracySD`), assuming normally distributed error. However, out-of-bag error may reflect overfitting. A more realistic error measure was obtained through testing of the data partition that did not participate in training, as discussed below.
 
 ```{r ROC, anchor="figure"}
 trtsresults.probA <- predict(fit,type="prob",newdata=trts)$A
@@ -124,13 +125,22 @@ plot(perf,main="ROC for Correct versus Incorrect Form Predictions\nFrom Observat
 abline(a=0,b=1,lwd=2,lty=2,col="gray")
 ```
 
-The Receiver Operating Characteristic (ROC) curve above shows the performance of the random forest model on prediction of correct weighlifting form (classe=="A"). The area under the ROC curve is `r unlist(slot(performance(pred,"auc"), "y.values"))` (actually 0.9999006). The accuracy of the prediction for all classes (not just class A) is `r round(100 * sum(trtsresults==trts$classe)/length(trtsresults),1)`%
+THe 40% of the training data that did not participate in random forest training was used to measure out-of-sample error. The Receiver Operating Characteristic (ROC) curve above shows the performance of the random forest model on prediction of correct weighlifting form (classe=="A"). This is an easier classification problem than identifying the type of incorrect weightlifting form. The area under the ROC curve is `r unlist(slot(performance(pred,"auc"), "y.values"))` (actually 0.9999006). We can pick a threshold with both extremely low false positives and extremely high true positives.
 
+The accuracy of the prediction for all classes (the harder classification problem) is `r round(100.0 * sum(trtsresults==trts$classe)/length(trtsresults),1)`%.
  
 ## Analysis Choices
 
 * Features with any missing values in the test set were removed from both the test and training sets (`r figr('missing_variables_removed', type="figure", link=TRUE)`), because in general the model might require the missing variable in order to classify a test observation. 
 * Features that would not be known in a true prediction scenario, or that can not realistically be predictors, were also removed. For example, timestamps are not valid predictors because prediction should be possible in the future, when test timestamps will be different from those in the training set. Similarly, time window identification features may exactly predict observations that were done during the initial experiment, but will surely fail in a future prediction scenario. (`r figr('inappropriate_variables_removed', type="figure", link=TRUE)`)
+
+## Assignment Observations
+
+This assignment has offered lessons on the role of the data scientist. Given the features provided, random forest easily created an almost perfect classifier with practically no effort. Although some credit is due to the algorithm, and some to the ease of use of the R ecosystem, I believe most of the credit is due to the features. The authors of the data set performed valuable feature extraction by selection of optimal time windows and extraction of window-based features.
+
+This assignment suggests that data scientist can contribute to a successful model using nothing but technical data science know-how. In this case, it seems model fitting requires no understanding of the meaning of features. However, I suspect that the valuable feature extraction upon which this assignment was based required the authors' data science expertise in combination with an understanding of the weightlifting domain, the meaning of the raw features, and the experiment.
+
+Indeed, data science may be the most tractable aspect of hard modeling problems. Domain and experimental expertise are probably harder and time-consuming to master. With recent improvements in data science tools, increased hardware performance, and corresponding improvements in data science techniques, data analysis may be within closer reach of the average practioner than the other pieces of the modeling effort.
 
 ## References
 * Data was made available through the [Human Activity Recognition](http://groupware.les.inf.puc-rio.br/har) project:
