@@ -9,3 +9,8 @@
 
 # RStudio files
 .Rproj.user/
+pml-testing.csv
+.Rproj.user
+HAR-Learning.Rproj
+pml-training.csv
+/pml-testing.ods

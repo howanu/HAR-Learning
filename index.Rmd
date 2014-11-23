@@ -5,21 +5,142 @@ date: "Saturday, November 22, 2014"
 output: html_document
 ---
 
-##Summary
+```{r settings, message=FALSE, echo=FALSE}
+require(knitr)
+opts_chunk$set(echo=FALSE,message=FALSE)
+```
 
-##Model
+```{r libraries}
+require(ggplot2)
+require(plyr)
+require(kfigr)
+require(caret)
+```
+
+
+```{r read, cache=TRUE}
+rawtr <- read.csv('pml-training.csv', stringsAsFactors=FALSE)
+rawts <- read.csv('pml-testing.csv', stringsAsFactors=FALSE)
+rawclassendx <- which(colnames(rawtr)=="classe")
+```
+
+```{r clean}
+# Make sure the train and test sets have the same features
+stopifnot(all.equal(colnames(rawtr[,-rawclassendx])
+                    , colnames(rawts[,-rawclassendx])))
+
+# Note that we look at the testing set.
+# If you can't test against it, you should not model against it
+missing_colndx <- sapply(1:ncol(rawts), function(c) {
+  sum(is.na(rawts[,c])) != 0
+  })
+missing_variables_removed <- colnames(rawts)[which(missing_colndx)]
+
+# Remove timestamps and user names
+inappropriate_colndx <- grep(pattern = 'X|window|timestamp|user_name'
+                             , colnames(rawtr))
+inappropriate_variables_removed <- colnames(rawts)[inappropriate_colndx]
+
+tr <- rawtr[, - c(which(missing_colndx), inappropriate_colndx)]
+ts <- rawts[, - c(which(missing_colndx), inappropriate_colndx)]
+```
+
+```{r separate-training}
+tsndx <- createDataPartition(tr$classe, p = 0.40,list=FALSE)
+trtr <- tr[-tsndx,]
+trts <- tr[tsndx,]
+```
+
+```{r data-forest}
+
+found_best <- TRUE # Runs overnight; let's re-use the best one
+if (! found_best) {
+    ## 10-fold CV
+    fitControl <- trainControl(
+    method = "repeatedcv"
+    , number = 10
+    , repeats = 10) ## repeated ten times
+  set.seed(8181)
+  fit <- train(as.factor(classe)~.
+               , method = "rf" 
+               , data=trtr
+               , trControl = fitControl) 
+}
+else
+  load("fit.RData")
+
+fit
+```
+
+```{r testing}
+trtsresults <- predict(fit, newdata=trts)
+```
+
+```{r submission}
+answers <- as.character(predict(fit,newdata=ts))
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+    }
+  }
+if (! found_best) {
+  pml_write_files(answers)
+}
+```
+
+## Summary
+
+## Model
 how you built your model 
+data forest
 
-##cross Validation
-how you used cross validation
+## Cross Validation
+The choice of ten-fold cross validation was somewhat arbitrary. K-fold cross validation was chosen in order to reduce out-of-sample bias and to improve the out-of-sample error estimation accuracy.
 
-##Out-of-sample Error
+The training set, after partitioning to set aside a testing sample, has `r nrow(trtr)` observations. 10-fold validation therefore yields `r round(0.9 * nrow(trtr),1)` observations in each training fold, which seems large enough not to compromise training accuracy.
+
+The run time was a practical consideration. 10-fold validation ran overnight. This limited the number of iterations that could be done to vary parameters and improve the model. 
+
+## Out-of-sample Error
  what you think the expected out of sample error is
  
-##Analysis Choices
+## Analysis Choices
 why you made the choices you did
 
-##References
-* Data was made available through the [Human Activity Recognition](http://groupware.les.inf.puc-rio.br/har) project
+* Features with any missing values in the test set were removed from both the test and training sets (`r figr('missing_variables_removed', type="figure", link=TRUE)`), because in general the model might require the missing variable in order to classify a test observation. 
+* Features that would not be known in a true prediction scenario, or that can not realistically be predictors, were also removed. For example, timestamps are not valid predictors because prediction should be possible in the future, when test timestamps will be different from those in the training set. Similarly, time window identification features may exactly predict observations that were done during the initial experiment, but will surely fail in a future prediction scenario. (`r figr('inappropriate_variables_removed', type="figure", link=TRUE)`)
+
+## Assignment Observations
+in datum veritas
+
+## References
+* Data was made available through the [Human Activity Recognition](http://groupware.les.inf.puc-rio.br/har) project:
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz3JpxuN665
+
+
 * Training data: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
 * Testing data: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Data Set License
+
+**Important**: you are free to use this dataset for any purpose. **This dataset is licensed under the Creative Commons license (CC BY-SA)**. The CC BY-SA license means you can remix, tweak, and build upon this work even for commercial purposes, as long as you credit the authors of the original work and you license your new creations under the identical terms we are licensing to you. This license is often compared to "copyleft" free and open source software licenses. All new works based on this dataset will carry the same license, so any derivatives will also allow commercial use.
+
+## Appendix
+
+### Missing features removed
+```{r missing_variables_removed, anchor="figure", comment=NA, echo=TRUE}
+missing_variables_removed
+```
+
+### Inappropriate features removed
+```{r inappropriate_variables_removed, anchor="figure", comment=NA, echo=TRUE}
+inappropriate_variables_removed
+```
+
+
+
